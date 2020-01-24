@@ -57,32 +57,45 @@ fn geolocalize(ip: &str) -> GeoData {
     geo
 }
 
+fn response_with_code(status_code: StatusCode) -> Response<Body> {
+    Response::builder()
+        .status(status_code)
+        .body(Body::empty())
+        .unwrap()
+}
+
+
 async fn geoip(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 
     match (req.method(), req.uri().path()) {
         (&Method::GET, path) if path.starts_with(LOCATE_PATH) => {
-            let ip = path.trim_start_matches(LOCATE_PATH);
 
-            // Check regex IP or send Err
-            // https://github.com/PacktPublishing/Hands-On-Microservices-with-Rust/blob/master/Chapter02/hyper-microservice-rest/src/main.rs
+            let ip_addr = path
+                        .trim_start_matches(LOCATE_PATH)
+                        .parse::<IpAddr>();
 
-            Ok(
-                Response::new(
-                    Body::from(
-                        match serde_json::to_string(&geolocalize(ip)) {
-                            Ok(v) => v,
-                            Err(_e) => "{}".to_string(),
-                        }
+            match ip_addr {
+                Ok(v) => {
+                    Ok(
+                        Response::new(
+                            Body::from(
+                                match serde_json::to_string(&geolocalize(&v.to_string())) {
+                                    Ok(v) => v,
+                                    Err(_e) => "{}".to_string(),
+                                }
+                            )
+                        )
                     )
-                )
-            )
+
+                },
+                Err(_e) => {
+                    Ok(response_with_code(StatusCode::NOT_FOUND))
+                }
+            }
+
         },
         _ => {
-            println!("NOT FOUND");
-            Ok(Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body(Body::empty())
-            .unwrap())
+            Ok(response_with_code(StatusCode::NOT_FOUND))
         }
     }
 }
