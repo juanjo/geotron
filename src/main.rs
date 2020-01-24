@@ -72,9 +72,22 @@ fn response_with_code(status_code: StatusCode) -> Response<Body> {
         .unwrap()
 }
 
-async fn geoip(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+fn is_authorized(req: &Request<Body>) -> bool {
+    // FIXME: The content of this array should come from a file
+    let supported_tokens = ["fb6c9"];
+
+    match req.headers().get("authorization") {
+        Some(v) => {
+            supported_tokens.contains(&v.to_str().unwrap())
+        },
+        None => false
+    }
+}
+
+async fn geoip_service(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+
     match (req.method(), req.uri().path()) {
-        (&Method::GET, path) if path.starts_with(LOCATE_PATH) => {
+        (&Method::GET, path) if is_authorized(&req) && path.starts_with(LOCATE_PATH) => {
 
             let ip_addr = path
                         .trim_start_matches(LOCATE_PATH)
@@ -119,7 +132,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let service = make_service_fn(|_| async { 
         Ok::<_, hyper::Error>(
-            service_fn(geoip)
+            service_fn(geoip_service)
         )
     });
 
