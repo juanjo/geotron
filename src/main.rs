@@ -68,8 +68,7 @@ fn response_with_code(status_code: StatusCode) -> Response<Body> {
             Body::from(
                 "{}".to_string()
             )
-        )
-        .unwrap()
+        ).unwrap()
 }
 
 fn is_authorized(req: &Request<Body>) -> bool {
@@ -77,10 +76,8 @@ fn is_authorized(req: &Request<Body>) -> bool {
     let supported_tokens = ["fb6c9"];
 
     match req.headers().get("authorization") {
-        Some(v) => {
-            supported_tokens.contains(&v.to_str().unwrap())
-        },
-        None => false
+        Some(v) => supported_tokens.contains(&v.to_str().unwrap()),
+        None    => false
     }
 }
 
@@ -108,7 +105,7 @@ async fn geoip_service(req: Request<Body>) -> Result<Response<Body>, hyper::Erro
 
                 },
                 Err(_e) => {
-                    Ok(response_with_code(StatusCode::NOT_FOUND))
+                    Ok(response_with_code(StatusCode::BAD_REQUEST))
                 }
             }
 
