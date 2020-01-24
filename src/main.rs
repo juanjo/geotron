@@ -83,8 +83,12 @@ fn is_authorized(req: &Request<Body>) -> bool {
 
 async fn geoip_service(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 
+    if !is_authorized(&req) {
+        return Ok(response_with_code(StatusCode::UNAUTHORIZED))
+    };
+
     match (req.method(), req.uri().path()) {
-        (&Method::GET, path) if is_authorized(&req) && path.starts_with(LOCATE_PATH) => {
+        (&Method::GET, path) if path.starts_with(LOCATE_PATH) => {
 
             let ip_addr = path
                         .trim_start_matches(LOCATE_PATH)
@@ -104,15 +108,11 @@ async fn geoip_service(req: Request<Body>) -> Result<Response<Body>, hyper::Erro
                     )
 
                 },
-                Err(_e) => {
-                    Ok(response_with_code(StatusCode::BAD_REQUEST))
-                }
+                Err(_e) => Ok(response_with_code(StatusCode::BAD_REQUEST))
             }
 
         },
-        _ => {
-            Ok(response_with_code(StatusCode::NOT_FOUND))
-        }
+        _ => Ok(response_with_code(StatusCode::NOT_FOUND))
     }
 }
 
