@@ -30,7 +30,10 @@ struct GeoData {
 }
 
 fn geolocalize(ip: &str) -> GeoData {
+    // FIXME: I need to make this be called at the beginning just once
     let reader = maxminddb::Reader::open_readfile(GEOIP_MMDB_PATH).unwrap();
+
+    // FIXME: Validate ip_addr
     let ip: IpAddr = FromStr::from_str(&ip).unwrap();
     let city: geoip2::City = reader.lookup(ip).unwrap();
 
@@ -58,6 +61,7 @@ fn geolocalize(ip: &str) -> GeoData {
 }
 
 fn response_with_code(status_code: StatusCode) -> Response<Body> {
+    // FIXME: I would like to return detail errors
     Response::builder()
         .status(status_code)
         .body(
@@ -110,6 +114,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     env::set_var("RUST_BACKTRACE", "1");
     pretty_env_logger::init();
 
+    // FIXME: Take the port from an ENV variable
     let addr = ([127, 0, 0, 1], 3000).into();
 
     let service = make_service_fn(|_| async { 
