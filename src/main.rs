@@ -60,13 +60,15 @@ fn geolocalize(ip: &str) -> GeoData {
 fn response_with_code(status_code: StatusCode) -> Response<Body> {
     Response::builder()
         .status(status_code)
-        .body(Body::empty())
+        .body(
+            Body::from(
+                "{}".to_string()
+            )
+        )
         .unwrap()
 }
 
-
 async fn geoip(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-
     match (req.method(), req.uri().path()) {
         (&Method::GET, path) if path.starts_with(LOCATE_PATH) => {
 
