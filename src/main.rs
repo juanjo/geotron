@@ -8,17 +8,15 @@ use maxminddb;
 use maxminddb::geoip2;
 
 extern crate serde_json;
-use serde::{Serialize, Deserialize};
+use serde::{Serialize};
 
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
 
-
-
 const GEOIP_MMDB_PATH: &str = "geoip/GeoIP2-City.mmdb";
 const LOCATE_PATH: &str = "/api/locate/";
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 struct GeoData {
     country_code: Option<String>,
     city_name: Option<String>,
@@ -32,8 +30,6 @@ struct GeoData {
 fn resolve_ip_to_geo(ip: IpAddr) -> GeoData {
     // FIXME: I need to make this be called at the beginning just once
     let reader = maxminddb::Reader::open_readfile(GEOIP_MMDB_PATH).unwrap();
-
-    // FIXME: Validate ip_addr
     let city: geoip2::City = reader.lookup(ip).unwrap();
 
     let country_code    = city.country.and_then(|cy| cy.iso_code);
@@ -71,7 +67,6 @@ fn response_with_code(status_code: StatusCode) -> Response<Body> {
             )
         ).unwrap()
 }
-
 
 fn is_authorized(req: &Request<Body>) -> bool {
     // FIXME: The content of this array should come from a file
@@ -127,7 +122,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     pretty_env_logger::init();
 
     // FIXME: Take the port from an ENV variable
-    let addr = ([127, 0, 0, 1], 3000).into();
+    let addr = ([127, 0, 0, 1], 3003).into();
 
     let service = make_service_fn(|_| async { 
         Ok::<_, hyper::Error>(
