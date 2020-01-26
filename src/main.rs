@@ -27,7 +27,7 @@ struct GeoData {
     longitude: Option<f64>
 }
 
-fn resolve_ip_to_geo(ip: IpAddr) -> GeoData {
+fn resolve_ip_to_geo(ip: IpAddr) -> String {
     // FIXME: I need to make this be called at the beginning just once
     let reader = maxminddb::Reader::open_readfile(GEOIP_MMDB_PATH).unwrap();
     let city: geoip2::City = reader.lookup(ip).unwrap();
@@ -54,17 +54,18 @@ fn resolve_ip_to_geo(ip: IpAddr) -> GeoData {
         longitude: longitude
     };
 
-    geo
+    match serde_json::to_string(&geo) {
+        Ok(v)   => v,
+        Err(_e) => String::from("{}")
+    }
 }
 
-fn response_with_code(status_code: StatusCode) -> Response<Body> {
+fn response_with_code(status_code: StatusCode, body: String) -> Response<Body> {
     // FIXME: I would like to return detail errors
     Response::builder()
         .status(status_code)
         .body(
-            Body::from(
-                "{}".to_string()
-            )
+            Body::from(body)
         ).unwrap()
 }
 
@@ -81,36 +82,21 @@ fn is_authorized(req: &Request<Body>) -> bool {
 async fn geoip_service(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 
     if !is_authorized(&req) {
-        return Ok(response_with_code(StatusCode::UNAUTHORIZED))
+        return Ok(response_with_code(StatusCode::UNAUTHORIZED, "{}".to_string()))
     }
 
-    match (req.method(), req.uri().path()) {
+    let response = match (req.method(), req.uri().path()) {
         (&Method::GET, path) if path.starts_with(LOCATE_PATH) => {
+            match path.trim_start_matches(LOCATE_PATH).parse::<IpAddr>() {
 
-            let ip_addr = path
-                        .trim_start_matches(LOCATE_PATH)
-                        .parse::<IpAddr>();
-
-            match ip_addr {
-                Ok(ip) => {
-                    Ok(
-                        Response::new(
-                            Body::from(
-                                match serde_json::to_string(
-                                    &resolve_ip_to_geo(ip)) {
-                                        Ok(v) => v,
-                                        Err(_e) => "{}".to_string(),
-                                    }
-                            )
-                        )
-                    )
-                },
-                Err(_e) => Ok(response_with_code(StatusCode::BAD_REQUEST))
+                Ok(ip_addr) => response_with_code(StatusCode::OK, resolve_ip_to_geo(ip_addr)),
+                Err(_e)     => response_with_code(StatusCode::BAD_REQUEST, "{}".to_string())
             }
-
         },
-        _ => Ok(response_with_code(StatusCode::NOT_FOUND))
-    }
+        _ => response_with_code(StatusCode::NOT_FOUND, "{}".to_string())
+    };
+
+    Ok(response)
 }
 
 
