@@ -1,6 +1,4 @@
 use std::net::IpAddr;
-use std::str::FromStr;
-
 use std::env;
 
 extern crate pretty_env_logger;
@@ -15,7 +13,9 @@ use serde::{Serialize, Deserialize};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
 
-const GEOIP_MMDB_PATH: &'static str = "geoip/GeoIP2-City.mmdb";
+
+
+const GEOIP_MMDB_PATH: &str = "geoip/GeoIP2-City.mmdb";
 const LOCATE_PATH: &str = "/api/locate/";
 
 #[derive(Serialize, Deserialize)]
@@ -29,12 +29,11 @@ struct GeoData {
     longitude: Option<f64>
 }
 
-fn geolocalize(ip: &str) -> GeoData {
+fn resolve_ip_to_geo(ip: IpAddr) -> GeoData {
     // FIXME: I need to make this be called at the beginning just once
     let reader = maxminddb::Reader::open_readfile(GEOIP_MMDB_PATH).unwrap();
 
     // FIXME: Validate ip_addr
-    let ip: IpAddr = FromStr::from_str(&ip).unwrap();
     let city: geoip2::City = reader.lookup(ip).unwrap();
 
     let country_code    = city.country.and_then(|cy| cy.iso_code);
@@ -44,8 +43,10 @@ fn geolocalize(ip: &str) -> GeoData {
     let latitude        = location.and_then(|cy| cy.latitude);
     let longitude       = location.and_then(|cy| cy.longitude);
     let city_name       = city.city.and_then(|cy| cy.names).and_then(|n| n.get("en").map(String::from));
-    // FIXME: unwrap() is a no go, and the line feels wrong anyway
-    let region_name     = city.subdivisions.unwrap()[0].names.as_ref().and_then(|n| n.get("en").map(String::from));
+    let region_name     = match city.subdivisions {
+        Some(v) => v[0].names.as_ref().and_then(|n| n.get("en").map(String::from)),
+        None => None
+    };
 
     let geo : GeoData = GeoData {
         country_code: country_code,
@@ -71,6 +72,7 @@ fn response_with_code(status_code: StatusCode) -> Response<Body> {
         ).unwrap()
 }
 
+
 fn is_authorized(req: &Request<Body>) -> bool {
     // FIXME: The content of this array should come from a file
     let supported_tokens = ["fb6c9"];
@@ -85,7 +87,7 @@ async fn geoip_service(req: Request<Body>) -> Result<Response<Body>, hyper::Erro
 
     if !is_authorized(&req) {
         return Ok(response_with_code(StatusCode::UNAUTHORIZED))
-    };
+    }
 
     match (req.method(), req.uri().path()) {
         (&Method::GET, path) if path.starts_with(LOCATE_PATH) => {
@@ -95,18 +97,18 @@ async fn geoip_service(req: Request<Body>) -> Result<Response<Body>, hyper::Erro
                         .parse::<IpAddr>();
 
             match ip_addr {
-                Ok(v) => {
+                Ok(ip) => {
                     Ok(
                         Response::new(
                             Body::from(
-                                match serde_json::to_string(&geolocalize(&v.to_string())) {
-                                    Ok(v) => v,
-                                    Err(_e) => "{}".to_string(),
-                                }
+                                match serde_json::to_string(
+                                    &resolve_ip_to_geo(ip)) {
+                                        Ok(v) => v,
+                                        Err(_e) => "{}".to_string(),
+                                    }
                             )
                         )
                     )
-
                 },
                 Err(_e) => Ok(response_with_code(StatusCode::BAD_REQUEST))
             }
